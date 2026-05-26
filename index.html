@@ -4,6 +4,8 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
   <title>UltraTribe AR</title>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#000;font-family:'Courier New',monospace;overflow:hidden;width:100vw;height:100vh}
@@ -23,7 +25,7 @@
     .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff00ff,#ff6600);transition:width .6s ease;box-shadow:0 0 10px #ff00ff}
     .loader-text{font-size:13px;letter-spacing:.25em;color:#ccc;text-transform:uppercase;font-weight:600}
 
-    #hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:50;display:none;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+    #hint{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);z-index:50;display:none;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
     #hint.active{display:flex}
     .hint-frame{width:150px;height:150px;position:relative}
     .hint-frame::before,.hint-frame::after,.hint-frame span::before,.hint-frame span::after{content:'';position:absolute;width:22px;height:22px;border-color:#ff00ff;border-style:solid;opacity:.7;animation:cornerPulse 2s ease-in-out infinite}
@@ -37,202 +39,11 @@
     #found-flash{position:fixed;inset:0;z-index:40;background:radial-gradient(circle,#ff00ff28 0%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .3s}
     #found-flash.active{opacity:1}
 
-    /* Waterfall canvas -- sits between camera feed and UI */
-    #wf-canvas{
-      position:fixed;inset:0;z-index:20;
-      width:100vw;height:100vh;
-      pointer-events:none;
-      transform:translateY(-100%);
-      transition:transform 0.65s cubic-bezier(0.4,0,0.2,1);
-    }
-    #wf-canvas.visible{ transform:translateY(0); }
-
-    #arrow-btn{
-      position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
-      z-index:9999;display:none;
-      width:60px;height:60px;border-radius:50%;
-      border:2px solid #ff00ff;background:rgba(0,0,0,0.75);
-      cursor:pointer;align-items:center;justify-content:center;
-      box-shadow:0 0 20px #ff00ff88;
-      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-      pointer-events:all;
-    }
-    #arrow-btn.active{display:flex}
-    #arrow-btn svg{transition:transform 0.5s ease;pointer-events:none}
-    #arrow-btn.wf-open svg{transform:rotate(180deg)}
-
     a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:1}
   </style>
 </head>
 <body>
 
-<!-- Waterfall canvas initialised FIRST to claim WebGL context before A-Frame -->
-<canvas id="wf-canvas"></canvas>
-
-<div id="splash">
-  <div class="brand-ring"></div>
-  <div class="brand-logo">UltraTribe</div>
-  <div class="brand-tagline">Wear the Vision</div>
-  <button id="start-btn" onclick="startAR()">Activate AR</button>
-</div>
-
-<div id="loader">
-  <div class="brand-logo" style="font-size:16px">UltraTribe</div>
-  <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
-  <div class="loader-text">Starting camera...</div>
-</div>
-
-<div id="hint"><div class="hint-frame"><span></span></div><div class="hint-text">Point at the shirt</div></div>
-<div id="found-flash"></div>
-
-<button id="arrow-btn">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <polyline points="6,9 12,15 18,9" stroke="#ff00ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>
-</button>
-
-<!-- A-Frame loaded AFTER waterfall canvas has claimed its WebGL context -->
-<script>
-// ── Waterfall WebGL -- initialise immediately, before A-Frame loads ────────────
-const wfCanvas = document.getElementById('wf-canvas');
-wfCanvas.width  = window.innerWidth;
-wfCanvas.height = window.innerHeight;
-
-const gl = wfCanvas.getContext('webgl', {alpha:true, premultipliedAlpha:false})
-        || wfCanvas.getContext('experimental-webgl', {alpha:true, premultipliedAlpha:false});
-
-let wfReady = false;
-
-if (gl) {
-  const vert = `attribute vec2 a_pos; void main(){ gl_Position=vec4(a_pos,0.,1.); }`;
-
-  const frag = `
-    precision highp float;
-    uniform vec2  iRes;
-    uniform float iTime;
-    const float PI=3.141592654,TAU=6.283185307;
-
-    float ray_issphere4(vec3 ro,vec3 rd,float ra){
-      float r2=ra*ra;
-      vec3 d2=rd*rd,d3=d2*rd,o2=ro*ro,o3=o2*ro;
-      float ka=1./dot(d2,d2),k3=ka*dot(ro,d3),k2=ka*dot(o2,d2),
-            k1=ka*dot(o3,rd),k0=ka*(dot(o2,o2)-r2*r2),
-            c2=k2-k3*k3,c1=k1+2.*k3*k3*k3-3.*k3*k2,
-            c0=k0-3.*k3*k3*k3*k3+6.*k3*k3*k2-4.*k3*k1,
-            p=c2*c2+c0/3.,q=c2*c2*c2-c2*c0+c1*c1,h=q*q-p*p*p;
-      if(h<0.)return -1.;
-      float sh=sqrt(h),s=sign(q+sh)*pow(abs(q+sh),1./3.),t=sign(q-sh)*pow(abs(q-sh),1./3.);
-      vec2 w=vec2(s+t,s-t),v=vec2(w.x+c2*4.,w.y*sqrt(3.))*.5;
-      float r=length(v);
-      return abs(v.y)/sqrt(r+v.x)-c1/r-k3;
-    }
-    float hash(vec2 co){return fract(sin(dot(co,vec2(12.9898,58.233)))*13758.5453);}
-    float hash1(float co){return fract(sin(co*12.9898)*13758.5453);}
-    float dot2(vec2 p){return dot(p,p);}
-
-    vec3 lines(vec3 F,vec3 P,float A,float AA,float T){
-      const float N=4.;
-      vec2 Z0=vec2(5e-3,TAU/6.),Z1=.2*Z0;
-      for(float j=0.;j<N;++j){
-        vec3 p=P;p.x+=Z0.x*j/N;
-        float h0=hash(vec2(floor(p.x/Z0.x+.5),j)),h1=fract(8667.*h0),a=A-T*(1.+h0);
-        vec2 q=vec2(p.x,a),n=floor(vec2(p.x,a)/Z0+.5),q0,q1,d;
-        q-=n*Z0;q0=q-vec2(0.,Z1.y);q1=q;q1.y=max(abs(q1.y)-Z1.y,0.);
-        d=vec2(length(q0),length(q1))-Z1.x;
-        vec4 c=.5*(1.+sin(.1*T+TAU*h1+vec4(0.,1.,8.,4.)));
-        vec3 b=c.xyz*c.w;
-        F+=exp(19.*(q.y-Z1.y))*smoothstep(AA,-AA,d.y)*b;
-        F+=smoothstep(AA,-AA,d.x-.5*Z1.x)*sqrt(.5*(b-min(0.,d.x-.5*Z1.x)));
-      }
-      return F;
-    }
-    vec3 stars(vec3 F,vec3 P,float A,float AA,float T){
-      vec2 Z0=vec2(.1,TAU/6.);
-      vec3 p=P;p.x+=.123;
-      float h0=hash(vec2(floor(p.x/Z0.x+.5),0.)),h1=fract(8667.*h0),a=A-T*(1.5+h0);
-      vec2 q=vec2(p.x,a),n=floor(vec2(p.x,a)/Z0+.5),dq;
-      q-=n*Z0;
-      dq=vec2(.001,.001);
-      vec3 c=.5*(1.+sin(7.*T+TAU*h1+vec3(2.,1.,0.)))*hash1(.123*n.x+floor(T*121.));
-      F+=c*7e-6/max(dot2(vec2(dq.y/max(dq.x,1e-5),1.)*q),1e-6);
-      return F;
-    }
-
-    void main(){
-      vec2 C=gl_FragCoord.xy,R=iRes;
-      vec3 RO=vec3(0.,-1.9,0.);
-      vec3 RD=normalize(vec3(C-.5*R,sqrt(2.)*R.y));
-      vec3 F=3e-4*vec3(1.,4.,40.)/(dot2(vec2(sqrt(.5),1.).yx*((C+C-R)/R.x-vec2(0.,R.y/R.x)))+2e-3);
-      float Z=ray_issphere4(RO,RD,2.),T=.07*iTime+123.;
-      vec3 P=Z*RD+RO;
-      float A=atan(P.z,P.y),AA=.002;
-      F=lines(F,P,A,AA,T);
-      F=stars(F,P,A,AA,T);
-      F*=4.;F-=2e-2*vec3(2.,3.,1.);
-      F=tanh(F);F=max(F,0.);F=sqrt(F)-.05;
-      float brightness=dot(F,vec3(.299,.587,.114));
-      float alpha=min(brightness*.9,0.82);
-      gl_FragColor=vec4(F,alpha);
-    }
-  `;
-
-  function mkShader(type, src){
-    const s=gl.createShader(type);
-    gl.shaderSource(s,src);gl.compileShader(s);
-    return s;
-  }
-
-  const prog=gl.createProgram();
-  gl.attachShader(prog,mkShader(gl.VERTEX_SHADER,vert));
-  gl.attachShader(prog,mkShader(gl.FRAGMENT_SHADER,frag));
-  gl.linkProgram(prog);
-  gl.useProgram(prog);
-
-  const buf=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-  const loc=gl.getAttribLocation(prog,'a_pos');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-
-  const uRes=gl.getUniformLocation(prog,'iRes');
-  const uTime=gl.getUniformLocation(prog,'iTime');
-  const t0=performance.now();
-  let wfAnimating=false;
-
-  function wfRender(){
-    if(!wfAnimating)return;
-    const t=(performance.now()-t0)/1000;
-    gl.viewport(0,0,wfCanvas.width,wfCanvas.height);
-    gl.uniform2f(uRes,wfCanvas.width,wfCanvas.height);
-    gl.uniform1f(uTime,t);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-    requestAnimationFrame(wfRender);
-  }
-
-  window.startWfRender=function(){ wfAnimating=true; wfRender(); };
-  window.stopWfRender=function(){ wfAnimating=false; };
-  wfReady=true;
-
-  window.addEventListener('resize',()=>{
-    wfCanvas.width=window.innerWidth;
-    wfCanvas.height=window.innerHeight;
-  });
-} else {
-  console.warn('WebGL not available for waterfall');
-}
-</script>
-
-<!-- A-Frame loads AFTER WebGL context is already claimed above -->
-<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-
-<script>
-// ── A-Frame scene added dynamically after scripts load ────────────────────────
-const sceneHTML = `
 <a-scene
   id="ar-scene"
   mindar-image="imageTargetSrc: target.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
@@ -250,10 +61,25 @@ const sceneHTML = `
     <a-entity id="geo-spinner"     position="0 0 0.015" sacred-geo></a-entity>
     <a-entity id="aura-disc"       position="0 0 0.005" aura-glow></a-entity>
   </a-entity>
-</a-scene>`;
-document.body.insertAdjacentHTML('afterbegin', sceneHTML);
+</a-scene>
 
-// ── Components ────────────────────────────────────────────────────────────────
+<div id="splash">
+  <div class="brand-ring"></div>
+  <div class="brand-logo">UltraTribe</div>
+  <div class="brand-tagline">Wear the Vision</div>
+  <button id="start-btn" onclick="startAR()">Activate AR</button>
+</div>
+
+<div id="loader">
+  <div class="brand-logo" style="font-size:16px">UltraTribe</div>
+  <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
+  <div class="loader-text">Starting camera...</div>
+</div>
+
+<div id="hint"><div class="hint-frame"><span></span></div><div class="hint-text">Point at the shirt</div></div>
+<div id="found-flash"></div>
+
+<script>
 AFRAME.registerComponent('orb-ring',{
   schema:{radius:{default:.4},count:{default:36},speed:{default:.5},hue:{default:280},orbSize:{default:.028},reverse:{default:false}},
   init(){
@@ -347,7 +173,6 @@ AFRAME.registerComponent('aura-glow',{
   hide(){this.visible=false;this.mesh.visible=false;}
 });
 
-// ── AR helpers ────────────────────────────────────────────────────────────────
 function showEffects(){
   ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
@@ -367,35 +192,11 @@ function hideEffects(){
   document.getElementById('hint').classList.add('active');
 }
 
-// ── Waterfall toggle ──────────────────────────────────────────────────────────
-let wfOpen=false;
-const btn=document.getElementById('arrow-btn');
-
-function toggleWaterfall(){
-  wfOpen=!wfOpen;
-  if(wfOpen){
-    wfCanvas.classList.add('visible');
-    btn.classList.add('wf-open');
-    if(window.startWfRender) window.startWfRender();
-  } else {
-    wfCanvas.classList.remove('visible');
-    btn.classList.remove('wf-open');
-    if(window.stopWfRender) window.stopWfRender();
-  }
-}
-
-btn.addEventListener('click', toggleWaterfall);
-btn.addEventListener('touchend', e=>{ e.preventDefault(); toggleWaterfall(); }, {passive:false});
-
-// ── AR lifecycle ──────────────────────────────────────────────────────────────
 const sceneEl=document.getElementById('ar-scene');
 
 sceneEl.addEventListener('arReady',()=>{
   document.getElementById('loader').classList.remove('active');
   document.getElementById('hint').classList.add('active');
-  btn.classList.add('active');
-  const afc=sceneEl.querySelector('canvas');
-  if(afc) afc.style.pointerEvents='none';
 });
 
 sceneEl.addEventListener('targetFound', showEffects);
