@@ -6,6 +6,7 @@
   <title>UltraTribe AR</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#000;font-family:'Courier New',monospace;overflow:hidden;width:100vw;height:100vh}
@@ -42,10 +43,30 @@
     #found-flash{position:fixed;inset:0;z-index:40;background:radial-gradient(circle,#ff00ff28 0%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .3s}
     #found-flash.active{opacity:1}
 
-    #ar-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;display:none}
+    a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:1}
   </style>
 </head>
 <body>
+
+<!-- A-Frame scene present in HTML from page load, autoStart false -->
+<a-scene
+  id="ar-scene"
+  mindar-image="autoStart:false;uiLoading:no;uiScanning:no;uiError:no"
+  color-space="sRGB"
+  renderer="colorManagement:true"
+  vr-mode-ui="enabled:false"
+  device-orientation-permission-ui="enabled:false"
+>
+  <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
+  <a-entity mindar-image-target="targetIndex:0">
+    <a-plane id="bg-plane" width="1" height="1" material="opacity:0;transparent:true;side:double" position="0 0 0"></a-plane>
+    <a-entity id="psyche-layer"    position="0 0 0.01"  psychedelic-overlay></a-entity>
+    <a-entity id="particle-ring-1" position="0 0 0.02"  particle-ring="radius:0.35;count:60;speed:0.6;hue:300;size:0.012"></a-entity>
+    <a-entity id="particle-ring-2" position="0 0 0.02"  particle-ring="radius:0.55;count:40;speed:0.4;hue:30;size:0.018;reverse:true"></a-entity>
+    <a-entity id="geo-spinner"     position="0 0 0.015" sacred-geo></a-entity>
+    <a-entity id="aura-disc"       position="0 0 0.005" aura-glow></a-entity>
+  </a-entity>
+</a-scene>
 
 <div id="splash">
   <div class="brand-ring"></div>
@@ -63,13 +84,8 @@
 <div id="hint"><div class="hint-frame"><span></span></div><div class="hint-text">Point at the shirt</div></div>
 <div id="found-flash"></div>
 
-<div id="ar-scene"></div>
-
-<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-
 <script>
-  // ── Components ───────────────────────────────────────────────────────────
+  // ── Components ─────────────────────────────────────────────────────────────
 
   AFRAME.registerComponent('psychedelic-overlay',{
     init(){
@@ -92,7 +108,8 @@
       this.el.setObject3D('mesh',new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat));
     },
     tick(t){if(!this.mat)return;this.mat.uniforms.time.value=t/1000;this.opacity+=(this.targetOpacity-this.opacity)*.05;this.mat.uniforms.opacity.value=this.opacity;},
-    show(){this.targetOpacity=1;},hide(){this.targetOpacity=0;}
+    show(){this.targetOpacity=1;},
+    hide(){this.targetOpacity=0;}
   });
 
   AFRAME.registerComponent('particle-ring',{
@@ -114,7 +131,8 @@
       if(!this.visible)return;const time=t/1000,dir=this.data.reverse?-1:1;
       this.particles.forEach(p=>{const a=p.angle+time*this.data.speed*dir*.3,d=Math.sin(time*p.speed+p.phase)*.08,r=p.r+d;p.mesh.position.set(Math.cos(a)*r,Math.sin(a)*r,0);const pu=.5+.5*Math.sin(time*p.speed*2+p.phase);p.mesh.material.opacity=.4+pu*.6;const s=.8+pu*.5;p.mesh.scale.set(s,s,s);});
     },
-    show(){this.visible=true;this.group.visible=true;},hide(){this.visible=false;this.group.visible=false;}
+    show(){this.visible=true;this.group.visible=true;},
+    hide(){this.visible=false;this.group.visible=false;}
   });
 
   AFRAME.registerComponent('sacred-geo',{
@@ -130,7 +148,8 @@
       });
     },
     tick(t){if(!this.visible)return;const time=t/1000;this.rings.forEach(r=>{r.line.rotation.z=time*r.speed*r.dir;r.line.material.opacity=.4+.6*Math.abs(Math.sin(time*.7));});},
-    show(){this.visible=true;this.group.visible=true;},hide(){this.visible=false;this.group.visible=false;}
+    show(){this.visible=true;this.group.visible=true;},
+    hide(){this.visible=false;this.group.visible=false;}
   });
 
   AFRAME.registerComponent('aura-glow',{
@@ -141,43 +160,28 @@
       this.mat=mat;this.visible=false;this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),mat);this.mesh.visible=false;this.el.setObject3D('mesh',this.mesh);
     },
     tick(t){if(this.visible)this.mat.uniforms.time.value=t/1000;},
-    show(){this.visible=true;this.mesh.visible=true;},hide(){this.visible=false;this.mesh.visible=false;}
+    show(){this.visible=true;this.mesh.visible=true;},
+    hide(){this.visible=false;this.mesh.visible=false;}
   });
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Main flow ──────────────────────────────────────────────────────────────
+
   function setProgress(pct,label){
     document.getElementById('loader-bar').style.width=pct+'%';
     document.getElementById('loader-text').textContent=label;
   }
-  function getEffects(){
-    return{
-      psyche:document.querySelector('[psychedelic-overlay]').components['psychedelic-overlay'],
-      inner:document.querySelectorAll('[particle-ring]')[0].components['particle-ring'],
-      outer:document.querySelectorAll('[particle-ring]')[1].components['particle-ring'],
-      geo:document.querySelector('[sacred-geo]').components['sacred-geo'],
-      aura:document.querySelector('[aura-glow]').components['aura-glow']
-    };
-  }
-  function showEffects(){
-    Object.values(getEffects()).forEach(c=>c&&c.show());
-    const f=document.getElementById('found-flash');f.classList.add('active');setTimeout(()=>f.classList.remove('active'),600);
-    document.getElementById('hint').classList.remove('active');
-  }
-  function hideEffects(){
-    Object.values(getEffects()).forEach(c=>c&&c.hide());
-    document.getElementById('hint').classList.add('active');
-  }
 
-  // ── Main ─────────────────────────────────────────────────────────────────
   async function startAR(){
     document.getElementById('splash').classList.add('hidden');
     document.getElementById('loader').classList.add('active');
     setProgress(5,'Loading image...');
 
+    // Load target image
     const img=new Image();
     await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src='target.png';});
     setProgress(12,'Compiling target...');
 
+    // Compile with MindAR
     const compiler=new MINDAR.IMAGE.Compiler();
     await compiler.compileImageTargets([img],(progress)=>{
       setProgress(Math.round(12+progress*.72),`Compiling: ${Math.round(progress)}%`);
@@ -185,88 +189,44 @@
     setProgress(86,'Exporting...');
 
     const buf=await compiler.exportData();
-    const blob=new Blob([buf]);
-    const mindUrl=URL.createObjectURL(blob);
+    const mindUrl=URL.createObjectURL(new Blob([buf]));
     setProgress(92,'Starting camera...');
 
-    // Build the A-Frame scene dynamically
-    const sceneEl=document.createElement('a-scene');
-    sceneEl.id='ar-scene';
-    sceneEl.setAttribute('mindar-image',`imageTargetSrc:${mindUrl};autoStart:false;uiLoading:no;uiScanning:no;uiError:no`);
-    sceneEl.setAttribute('color-space','sRGB');
-    sceneEl.setAttribute('renderer','colorManagement:true');
-    sceneEl.setAttribute('vr-mode-ui','enabled:false');
-    sceneEl.setAttribute('device-orientation-permission-ui','enabled:false');
-    sceneEl.style.cssText='position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;display:block';
-
-    const cam=document.createElement('a-camera');
-    cam.setAttribute('position','0 0 0');
-    cam.setAttribute('look-controls','enabled:false');
-    sceneEl.appendChild(cam);
-
-    const target=document.createElement('a-entity');
-    target.setAttribute('mindar-image-target','targetIndex:0');
-
-    const bg=document.createElement('a-plane');
-    bg.setAttribute('width','1');bg.setAttribute('height','1');
-    bg.setAttribute('material','opacity:0;transparent:true;side:double');
-    bg.setAttribute('position','0 0 0');
-    target.appendChild(bg);
-
-    const layers=[
-      ['psychedelic-overlay','position:0 0 0.01;psychedelic-overlay'],
-      ['particle-ring-1','position:0 0 0.02;particle-ring:radius:0.35;count:60;speed:0.6;hue:300;size:0.012'],
-      ['particle-ring-2','position:0 0 0.02;particle-ring:radius:0.55;count:40;speed:0.4;hue:30;size:0.018;reverse:true'],
-      ['sacred-geo','position:0 0 0.015;sacred-geo'],
-      ['aura-glow','position:0 0 0.005;aura-glow'],
-    ];
-
-    layers.forEach(([id,attrs])=>{
-      const e=document.createElement('a-entity');
-      e.id=id;
-      attrs.split(';').forEach(attr=>{
-        const colon=attr.indexOf(':');
-        if(colon===-1){e.setAttribute(attr,'');}
-        else{e.setAttribute(attr.slice(0,colon),attr.slice(colon+1));}
-      });
-      target.appendChild(e);
-    });
-
-    sceneEl.appendChild(target);
-    document.getElementById('ar-scene').replaceWith(sceneEl);
+    // Set imageTargetSrc on the existing scene and start
+    const sceneEl=document.getElementById('ar-scene');
+    const mindarSystem=sceneEl.systems['mindar-image-system'];
+    mindarSystem.data.imageTargetSrc=mindUrl;
 
     sceneEl.addEventListener('arReady',()=>{
       setProgress(100,'Ready');
       document.getElementById('loader').classList.remove('active');
       document.getElementById('hint').classList.add('active');
-    });
+    },{once:true});
 
     sceneEl.addEventListener('targetFound',()=>{
-      try{
-        const psyche=document.getElementById('psychedelic-overlay').components['psychedelic-overlay'];
-        const inner=document.getElementById('particle-ring-1').components['particle-ring'];
-        const outer=document.getElementById('particle-ring-2').components['particle-ring'];
-        const geo=document.getElementById('sacred-geo').components['sacred-geo'];
-        const aura=document.getElementById('aura-glow').components['aura-glow'];
-        [psyche,inner,outer,geo,aura].forEach(c=>c&&c.show());
-        const f=document.getElementById('found-flash');f.classList.add('active');setTimeout(()=>f.classList.remove('active'),600);
-        document.getElementById('hint').classList.remove('active');
-      }catch(e){}
+      ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(!el)return;
+        const c=el.components['psychedelic-overlay']||el.components['particle-ring']||el.components['sacred-geo']||el.components['aura-glow'];
+        if(c)c.show();
+      });
+      const f=document.getElementById('found-flash');
+      f.classList.add('active');
+      setTimeout(()=>f.classList.remove('active'),600);
+      document.getElementById('hint').classList.remove('active');
     });
 
     sceneEl.addEventListener('targetLost',()=>{
-      try{
-        const psyche=document.getElementById('psychedelic-overlay').components['psychedelic-overlay'];
-        const inner=document.getElementById('particle-ring-1').components['particle-ring'];
-        const outer=document.getElementById('particle-ring-2').components['particle-ring'];
-        const geo=document.getElementById('sacred-geo').components['sacred-geo'];
-        const aura=document.getElementById('aura-glow').components['aura-glow'];
-        [psyche,inner,outer,geo,aura].forEach(c=>c&&c.hide());
-        document.getElementById('hint').classList.add('active');
-      }catch(e){}
+      ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(!el)return;
+        const c=el.components['psychedelic-overlay']||el.components['particle-ring']||el.components['sacred-geo']||el.components['aura-glow'];
+        if(c)c.hide();
+      });
+      document.getElementById('hint').classList.add('active');
     });
 
-    sceneEl.systems['mindar-image-system'].start();
+    await mindarSystem.start();
   }
 </script>
 </body>
