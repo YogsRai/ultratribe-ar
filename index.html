@@ -62,22 +62,24 @@
       bottom:32px;
       left:50%;
       transform:translateX(-50%);
-      z-index:60;
+      z-index:9999;
       display:none;
-      width:52px;height:52px;
+      width:60px;height:60px;
       border-radius:50%;
       border:2px solid #ff00ff;
-      background:rgba(0,0,0,0.6);
+      background:rgba(0,0,0,0.75);
       cursor:pointer;
       align-items:center;
       justify-content:center;
-      backdrop-filter:blur(8px);
-      box-shadow:0 0 16px #ff00ff55;
+      box-shadow:0 0 20px #ff00ff88, 0 0 40px #ff00ff44;
       transition:box-shadow .3s, transform .3s;
+      pointer-events:all !important;
+      touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
     }
     #arrow-btn.active{display:flex}
-    #arrow-btn:active{transform:translateX(-50%) scale(0.92)}
-    #arrow-btn svg{transition:transform 0.4s ease}
+    #arrow-btn:active{transform:translateX(-50%) scale(0.88);box-shadow:0 0 30px #ff00ffcc}
+    #arrow-btn svg{transition:transform 0.4s ease;pointer-events:none}
     #arrow-btn.waterfall-open svg{transform:rotate(180deg)}
 
     a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:1}
@@ -576,7 +578,8 @@ function initWaterfall() {
 }
 
 // ── Toggle waterfall ──────────────────────────────────────────────────────────
-function toggleWaterfall() {
+function toggleWaterfall(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
   waterfallOpen = !waterfallOpen;
   const btn = document.getElementById('arrow-btn');
   if (waterfallOpen) {
@@ -587,6 +590,12 @@ function toggleWaterfall() {
     btn.classList.remove('waterfall-open');
   }
 }
+
+// Attach both click and touchend for maximum iOS compatibility
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('arrow-btn');
+  btn.addEventListener('touchend', toggleWaterfall, { passive: false });
+});
 
 // ── AR helpers ────────────────────────────────────────────────────────────────
 function showEffects() {
@@ -619,6 +628,12 @@ sceneEl.addEventListener('arReady', () => {
   document.getElementById('loader').classList.remove('active');
   document.getElementById('hint').classList.add('active');
   document.getElementById('arrow-btn').classList.add('active');
+
+  // Disable pointer events on the A-Frame canvas so HTML elements above it
+  // receive touch and click events normally on iOS and Android
+  const aframeCanvas = sceneEl.querySelector('canvas');
+  if (aframeCanvas) aframeCanvas.style.pointerEvents = 'none';
+
   initWaterfall();
 });
 
