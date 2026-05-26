@@ -21,13 +21,14 @@
     .brand-tagline{font-size:10px;letter-spacing:.45em;color:#555;text-transform:uppercase}
 
     #start-btn{margin-top:8px;padding:13px 38px;border:1px solid #ff00ff;background:transparent;color:#ff00ff;font-family:'Courier New',monospace;font-size:12px;letter-spacing:.3em;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .3s}
-    #start-btn:hover{background:#ff00ff18;box-shadow:0 0 18px #ff00ff55}
+    #start-btn:active{background:#ff00ff30}
 
     #loader{position:fixed;inset:0;z-index:90;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px}
     #loader.active{display:flex}
-    .loader-bar-wrap{width:200px;height:2px;background:#111;border-radius:2px;overflow:hidden}
-    .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff00ff,#ff6600);transition:width .4s ease;box-shadow:0 0 6px #ff00ff}
-    .loader-text{font-size:10px;letter-spacing:.35em;color:#555;text-transform:uppercase}
+    .loader-bar-wrap{width:220px;height:3px;background:#222;border-radius:2px;overflow:hidden}
+    .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff00ff,#ff6600);transition:width .4s ease;box-shadow:0 0 10px #ff00ff}
+    .loader-text{font-size:13px;letter-spacing:.25em;color:#ccc;text-transform:uppercase;font-weight:600}
+    .loader-pct{font-size:28px;font-weight:900;letter-spacing:.05em;color:#fff}
 
     #hint{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);z-index:50;display:none;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
     #hint.active{display:flex}
@@ -38,7 +39,7 @@
     .hint-frame span::before{bottom:0;left:0;border-width:0 0 2px 2px}
     .hint-frame span::after{bottom:0;right:0;border-width:0 2px 2px 0}
     @keyframes cornerPulse{0%,100%{opacity:.35}50%{opacity:1;box-shadow:0 0 8px #ff00ff}}
-    .hint-text{font-size:10px;letter-spacing:.35em;color:#777;text-transform:uppercase}
+    .hint-text{font-size:11px;letter-spacing:.35em;color:#aaa;text-transform:uppercase}
 
     #found-flash{position:fixed;inset:0;z-index:40;background:radial-gradient(circle,#ff00ff28 0%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .3s}
     #found-flash.active{opacity:1}
@@ -48,7 +49,6 @@
 </head>
 <body>
 
-<!-- A-Frame scene present in HTML from page load, autoStart false -->
 <a-scene
   id="ar-scene"
   mindar-image="autoStart:false;uiLoading:no;uiScanning:no;uiError:no"
@@ -59,7 +59,7 @@
 >
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
   <a-entity mindar-image-target="targetIndex:0">
-    <a-plane id="bg-plane" width="1" height="1" material="opacity:0;transparent:true;side:double" position="0 0 0"></a-plane>
+    <a-plane width="1" height="1" material="opacity:0;transparent:true;side:double" position="0 0 0"></a-plane>
     <a-entity id="psyche-layer"    position="0 0 0.01"  psychedelic-overlay></a-entity>
     <a-entity id="particle-ring-1" position="0 0 0.02"  particle-ring="radius:0.35;count:60;speed:0.6;hue:300;size:0.012"></a-entity>
     <a-entity id="particle-ring-2" position="0 0 0.02"  particle-ring="radius:0.55;count:40;speed:0.4;hue:30;size:0.018;reverse:true"></a-entity>
@@ -77,16 +77,15 @@
 
 <div id="loader">
   <div class="brand-logo" style="font-size:16px">UltraTribe</div>
+  <div class="loader-pct" id="loader-pct">0%</div>
   <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
-  <div class="loader-text" id="loader-text">Initialising...</div>
+  <div class="loader-text" id="loader-text">Requesting camera...</div>
 </div>
 
 <div id="hint"><div class="hint-frame"><span></span></div><div class="hint-text">Point at the shirt</div></div>
 <div id="found-flash"></div>
 
 <script>
-  // ── Components ─────────────────────────────────────────────────────────────
-
   AFRAME.registerComponent('psychedelic-overlay',{
     init(){
       const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
@@ -164,67 +163,89 @@
     hide(){this.visible=false;this.mesh.visible=false;}
   });
 
-  // ── Main flow ──────────────────────────────────────────────────────────────
-
-  function setProgress(pct,label){
-    document.getElementById('loader-bar').style.width=pct+'%';
-    document.getElementById('loader-text').textContent=label;
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function setProgress(pct, label){
+    document.getElementById('loader-bar').style.width = pct + '%';
+    document.getElementById('loader-pct').textContent = Math.round(pct) + '%';
+    document.getElementById('loader-text').textContent = label;
   }
 
+  function showEffects(){
+    ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
+      const el=document.getElementById(id);if(!el)return;
+      const c=el.components['psychedelic-overlay']||el.components['particle-ring']||el.components['sacred-geo']||el.components['aura-glow'];
+      if(c)c.show();
+    });
+    const f=document.getElementById('found-flash');
+    f.classList.add('active');
+    setTimeout(()=>f.classList.remove('active'),600);
+    document.getElementById('hint').classList.remove('active');
+  }
+
+  function hideEffects(){
+    ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
+      const el=document.getElementById(id);if(!el)return;
+      const c=el.components['psychedelic-overlay']||el.components['particle-ring']||el.components['sacred-geo']||el.components['aura-glow'];
+      if(c)c.hide();
+    });
+    document.getElementById('hint').classList.add('active');
+  }
+
+  // ── Main flow ──────────────────────────────────────────────────────────────
   async function startAR(){
     document.getElementById('splash').classList.add('hidden');
     document.getElementById('loader').classList.add('active');
-    setProgress(5,'Loading image...');
+    setProgress(0, 'Requesting camera...');
 
-    // Load target image
-    const img=new Image();
-    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src='target.png';});
-    setProgress(12,'Compiling target...');
+    // Step 1: Request camera immediately inside the user gesture
+    // This is critical for iOS Safari -- getUserMedia must be called
+    // synchronously within the tap handler context
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:'environment' },
+        audio: false
+      });
+    } catch(err){
+      setProgress(0, 'Camera access denied');
+      return;
+    }
+    setProgress(10, 'Camera granted. Loading image...');
 
-    // Compile with MindAR
-    const compiler=new MINDAR.IMAGE.Compiler();
-    await compiler.compileImageTargets([img],(progress)=>{
-      setProgress(Math.round(12+progress*.72),`Compiling: ${Math.round(progress)}%`);
+    // Step 2: Load target image
+    const img = new Image();
+    await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src='target.png'; });
+    setProgress(18, 'Compiling target...');
+
+    // Step 3: Compile target
+    const compiler = new MINDAR.IMAGE.Compiler();
+    await compiler.compileImageTargets([img], (progress)=>{
+      setProgress(Math.round(18 + progress * 0.68), `Compiling: ${Math.round(progress)}%`);
     });
-    setProgress(86,'Exporting...');
+    setProgress(88, 'Exporting...');
 
-    const buf=await compiler.exportData();
-    const mindUrl=URL.createObjectURL(new Blob([buf]));
-    setProgress(92,'Starting camera...');
+    // Step 4: Export compiled buffer
+    const buf = await compiler.exportData();
+    const mindUrl = URL.createObjectURL(new Blob([buf]));
+    setProgress(93, 'Starting camera...');
 
-    // Set imageTargetSrc on the existing scene and start
-    const sceneEl=document.getElementById('ar-scene');
-    const mindarSystem=sceneEl.systems['mindar-image-system'];
-    mindarSystem.data.imageTargetSrc=mindUrl;
+    // Step 5: Stop the pre-granted stream -- MindAR will open its own
+    // using the same permission that is now granted for this session
+    stream.getTracks().forEach(t => t.stop());
 
-    sceneEl.addEventListener('arReady',()=>{
-      setProgress(100,'Ready');
+    // Step 6: Set imageTargetSrc and start MindAR on the existing scene
+    const sceneEl = document.getElementById('ar-scene');
+    const mindarSystem = sceneEl.systems['mindar-image-system'];
+    mindarSystem.data.imageTargetSrc = mindUrl;
+
+    sceneEl.addEventListener('arReady', ()=>{
+      setProgress(100, 'Ready');
       document.getElementById('loader').classList.remove('active');
       document.getElementById('hint').classList.add('active');
-    },{once:true});
+    }, {once:true});
 
-    sceneEl.addEventListener('targetFound',()=>{
-      ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
-        const el=document.getElementById(id);
-        if(!el)return;
-        const c=el.components['psychedelic-overlay']||el.components['particle-ring']||el.components['sacred-geo']||el.components['aura-glow'];
-        if(c)c.show();
-      });
-      const f=document.getElementById('found-flash');
-      f.classList.add('active');
-      setTimeout(()=>f.classList.remove('active'),600);
-      document.getElementById('hint').classList.remove('active');
-    });
-
-    sceneEl.addEventListener('targetLost',()=>{
-      ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
-        const el=document.getElementById(id);
-        if(!el)return;
-        const c=el.components['psychedelic-overlay']||el.components['particle-ring']||el.components['sacred-geo']||el.components['aura-glow'];
-        if(c)c.hide();
-      });
-      document.getElementById('hint').classList.add('active');
-    });
+    sceneEl.addEventListener('targetFound', showEffects);
+    sceneEl.addEventListener('targetLost',  hideEffects);
 
     await mindarSystem.start();
   }
