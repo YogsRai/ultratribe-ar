@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>UltraTribe AR</title>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#000;font-family:'Courier New',monospace;overflow:hidden;width:100vw;height:100vh}
+
+    #splash{position:fixed;inset:0;z-index:100;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .8s ease}
+    #splash.hidden{opacity:0;pointer-events:none}
+
+    .brand-ring{width:110px;height:110px;border-radius:50%;border:3px solid transparent;background:conic-gradient(from 0deg,#ff00ff,#ff6600,#ffff00,#00ff88,#00cfff,#ff00ff) border-box;-webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;animation:spinRing 3s linear infinite}
+    @keyframes spinRing{to{transform:rotate(360deg)}}
+
+    .brand-logo{font-size:26px;font-weight:900;letter-spacing:.35em;text-transform:uppercase;background:linear-gradient(135deg,#ff00ff,#ff6600,#ffff00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .brand-tagline{font-size:10px;letter-spacing:.45em;color:#555;text-transform:uppercase}
+
+    #start-btn{margin-top:8px;padding:13px 38px;border:1px solid #ff00ff;background:transparent;color:#ff00ff;font-family:'Courier New',monospace;font-size:12px;letter-spacing:.3em;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .3s}
+    #start-btn:hover{background:#ff00ff18;box-shadow:0 0 18px #ff00ff55}
+
+    #loader{position:fixed;inset:0;z-index:90;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+    #loader.active{display:flex}
+    .loader-bar-wrap{width:200px;height:2px;background:#111;border-radius:2px;overflow:hidden}
+    .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff00ff,#ff6600);transition:width .4s ease;box-shadow:0 0 6px #ff00ff}
+    .loader-text{font-size:10px;letter-spacing:.35em;color:#555;text-transform:uppercase}
+
+    #hint{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);z-index:50;display:none;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+    #hint.active{display:flex}
+    .hint-frame{width:150px;height:150px;position:relative}
+    .hint-frame::before,.hint-frame::after,.hint-frame span::before,.hint-frame span::after{content:'';position:absolute;width:22px;height:22px;border-color:#ff00ff;border-style:solid;opacity:.7;animation:cornerPulse 2s ease-in-out infinite}
+    .hint-frame::before{top:0;left:0;border-width:2px 0 0 2px}
+    .hint-frame::after{top:0;right:0;border-width:2px 2px 0 0}
+    .hint-frame span::before{bottom:0;left:0;border-width:0 0 2px 2px}
+    .hint-frame span::after{bottom:0;right:0;border-width:0 2px 2px 0}
+    @keyframes cornerPulse{0%,100%{opacity:.35}50%{opacity:1;box-shadow:0 0 8px #ff00ff}}
+    .hint-text{font-size:10px;letter-spacing:.35em;color:#777;text-transform:uppercase}
+
+    #found-flash{position:fixed;inset:0;z-index:40;background:radial-gradient(circle,#ff00ff28 0%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .3s}
+    #found-flash.active{opacity:1}
+
+    #ar-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;display:none}
+  </style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="brand-ring"></div>
+  <div class="brand-logo">UltraTribe</div>
+  <div class="brand-tagline">Wear the Vision</div>
+  <button id="start-btn" onclick="startAR()">Activate AR</button>
+</div>
+
+<div id="loader">
+  <div class="brand-logo" style="font-size:16px">UltraTribe</div>
+  <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
+  <div class="loader-text" id="loader-text">Initialising...</div>
+</div>
+
+<div id="hint"><div class="hint-frame"><span></span></div><div class="hint-text">Point at the shirt</div></div>
+<div id="found-flash"></div>
+
+<div id="ar-scene"></div>
+
+<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+<script>
+  // ── Components ───────────────────────────────────────────────────────────
+
+  AFRAME.registerComponent('psychedelic-overlay',{
+    init(){
+      const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+        uniforms:{time:{value:0},opacity:{value:0}},
+        vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+        fragmentShader:`
+          uniform float time;uniform float opacity;varying vec2 vUv;
+          vec3 hsv(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+          float rip(vec2 uv,float t,float f,float ph){return sin(length(uv-.5)*f-t*2.+ph)*.5+.5;}
+          void main(){
+            float t=time*.6;
+            float r1=rip(vUv,t,18.,0.),r2=rip(vUv,t*1.3,12.,2.1),r3=rip(vUv,t*.7,24.,4.2);
+            vec2 c=vUv-.5;float ang=atan(c.y,c.x)+t*.4;float rad=length(c);
+            float sw=sin(ang*6.+rad*12.-t*1.5)*.5+.5;
+            vec3 col=hsv(vec3(mod(r1*.4+r2*.3+sw*.3+t*.08,1.),.9+r3*.1,.7+sw*.3));
+            gl_FragColor=vec4(col,smoothstep(.5,.35,rad)*opacity*.55);
+          }`});
+      this.mat=mat;this.opacity=0;this.targetOpacity=0;
+      this.el.setObject3D('mesh',new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat));
+    },
+    tick(t){if(!this.mat)return;this.mat.uniforms.time.value=t/1000;this.opacity+=(this.targetOpacity-this.opacity)*.05;this.mat.uniforms.opacity.value=this.opacity;},
+    show(){this.targetOpacity=1;},hide(){this.targetOpacity=0;}
+  });
+
+  AFRAME.registerComponent('particle-ring',{
+    schema:{radius:{default:.4},count:{default:50},speed:{default:.5},hue:{default:280},size:{default:.015},reverse:{default:false}},
+    init(){
+      this.group=new THREE.Group();this.el.setObject3D('mesh',this.group);
+      this.visible=false;this.group.visible=false;this.particles=[];
+      const{count,radius,hue,size}=this.data;
+      for(let i=0;i<count;i++){
+        const a=(i/count)*Math.PI*2,r=radius*(.7+Math.random()*.6);
+        const mat=new THREE.MeshBasicMaterial({color:new THREE.Color().setHSL(((hue+(Math.random()-.5)*80)/360),1,.6),transparent:true,opacity:.85,depthWrite:false,blending:THREE.AdditiveBlending});
+        const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size),mat);
+        mesh.position.set(Math.cos(a)*r,Math.sin(a)*r,0);
+        this.particles.push({mesh,angle:a,r,phase:Math.random()*Math.PI*2,speed:.5+Math.random()*1.5});
+        this.group.add(mesh);
+      }
+    },
+    tick(t){
+      if(!this.visible)return;const time=t/1000,dir=this.data.reverse?-1:1;
+      this.particles.forEach(p=>{const a=p.angle+time*this.data.speed*dir*.3,d=Math.sin(time*p.speed+p.phase)*.08,r=p.r+d;p.mesh.position.set(Math.cos(a)*r,Math.sin(a)*r,0);const pu=.5+.5*Math.sin(time*p.speed*2+p.phase);p.mesh.material.opacity=.4+pu*.6;const s=.8+pu*.5;p.mesh.scale.set(s,s,s);});
+    },
+    show(){this.visible=true;this.group.visible=true;},hide(){this.visible=false;this.group.visible=false;}
+  });
+
+  AFRAME.registerComponent('sacred-geo',{
+    init(){
+      this.group=new THREE.Group();this.el.setObject3D('mesh',this.group);
+      this.visible=false;this.group.visible=false;this.rings=[];
+      [0xff00ff,0xff6600,0x00ffcc,0xffff00].forEach((col,i)=>{
+        const n=i%2===0?3:6,r=.42+i*.06,pts=[];
+        for(let j=0;j<=n;j++){const a=(j/n)*Math.PI*2-Math.PI/2;pts.push(Math.cos(a)*r,Math.sin(a)*r,0);}
+        const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+        const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.6,blending:THREE.AdditiveBlending}));
+        this.rings.push({line,dir:i%2===0?1:-1,speed:.2+i*.07});this.group.add(line);
+      });
+    },
+    tick(t){if(!this.visible)return;const time=t/1000;this.rings.forEach(r=>{r.line.rotation.z=time*r.speed*r.dir;r.line.material.opacity=.4+.6*Math.abs(Math.sin(time*.7));});},
+    show(){this.visible=true;this.group.visible=true;},hide(){this.visible=false;this.group.visible=false;}
+  });
+
+  AFRAME.registerComponent('aura-glow',{
+    init(){
+      const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{time:{value:0}},
+        vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+        fragmentShader:`uniform float time;varying vec2 vUv;void main(){vec2 c=vUv-.5;float d=length(c);float pu=.5+.5*sin(time*1.2);float glow=smoothstep(.5,0.,d)*.35*pu;float h=mod(time*.1,1.);float r=abs(h*6.-3.)-1.;float g=2.-abs(h*6.-2.);float b=2.-abs(h*6.-4.);gl_FragColor=vec4(clamp(vec3(r,g,b),0.,1.)*glow,glow);}`});
+      this.mat=mat;this.visible=false;this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),mat);this.mesh.visible=false;this.el.setObject3D('mesh',this.mesh);
+    },
+    tick(t){if(this.visible)this.mat.uniforms.time.value=t/1000;},
+    show(){this.visible=true;this.mesh.visible=true;},hide(){this.visible=false;this.mesh.visible=false;}
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function setProgress(pct,label){
+    document.getElementById('loader-bar').style.width=pct+'%';
+    document.getElementById('loader-text').textContent=label;
+  }
+  function getEffects(){
+    return{
+      psyche:document.querySelector('[psychedelic-overlay]').components['psychedelic-overlay'],
+      inner:document.querySelectorAll('[particle-ring]')[0].components['particle-ring'],
+      outer:document.querySelectorAll('[particle-ring]')[1].components['particle-ring'],
+      geo:document.querySelector('[sacred-geo]').components['sacred-geo'],
+      aura:document.querySelector('[aura-glow]').components['aura-glow']
+    };
+  }
+  function showEffects(){
+    Object.values(getEffects()).forEach(c=>c&&c.show());
+    const f=document.getElementById('found-flash');f.classList.add('active');setTimeout(()=>f.classList.remove('active'),600);
+    document.getElementById('hint').classList.remove('active');
+  }
+  function hideEffects(){
+    Object.values(getEffects()).forEach(c=>c&&c.hide());
+    document.getElementById('hint').classList.add('active');
+  }
+
+  // ── Main ─────────────────────────────────────────────────────────────────
+  async function startAR(){
+    document.getElementById('splash').classList.add('hidden');
+    document.getElementById('loader').classList.add('active');
+    setProgress(5,'Loading image...');
+
+    const img=new Image();
+    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src='target.png';});
+    setProgress(12,'Compiling target...');
+
+    const compiler=new MINDAR.IMAGE.Compiler();
+    await compiler.compileImageTargets([img],(progress)=>{
+      setProgress(Math.round(12+progress*.72),`Compiling: ${Math.round(progress)}%`);
+    });
+    setProgress(86,'Exporting...');
+
+    const buf=await compiler.exportData();
+    const blob=new Blob([buf]);
+    const mindUrl=URL.createObjectURL(blob);
+    setProgress(92,'Starting camera...');
+
+    // Build the A-Frame scene dynamically
+    const sceneEl=document.createElement('a-scene');
+    sceneEl.id='ar-scene';
+    sceneEl.setAttribute('mindar-image',`imageTargetSrc:${mindUrl};autoStart:false;uiLoading:no;uiScanning:no;uiError:no`);
+    sceneEl.setAttribute('color-space','sRGB');
+    sceneEl.setAttribute('renderer','colorManagement:true');
+    sceneEl.setAttribute('vr-mode-ui','enabled:false');
+    sceneEl.setAttribute('device-orientation-permission-ui','enabled:false');
+    sceneEl.style.cssText='position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;display:block';
+
+    const cam=document.createElement('a-camera');
+    cam.setAttribute('position','0 0 0');
+    cam.setAttribute('look-controls','enabled:false');
+    sceneEl.appendChild(cam);
+
+    const target=document.createElement('a-entity');
+    target.setAttribute('mindar-image-target','targetIndex:0');
+
+    const bg=document.createElement('a-plane');
+    bg.setAttribute('width','1');bg.setAttribute('height','1');
+    bg.setAttribute('material','opacity:0;transparent:true;side:double');
+    bg.setAttribute('position','0 0 0');
+    target.appendChild(bg);
+
+    const layers=[
+      ['psychedelic-overlay','position:0 0 0.01;psychedelic-overlay'],
+      ['particle-ring-1','position:0 0 0.02;particle-ring:radius:0.35;count:60;speed:0.6;hue:300;size:0.012'],
+      ['particle-ring-2','position:0 0 0.02;particle-ring:radius:0.55;count:40;speed:0.4;hue:30;size:0.018;reverse:true'],
+      ['sacred-geo','position:0 0 0.015;sacred-geo'],
+      ['aura-glow','position:0 0 0.005;aura-glow'],
+    ];
+
+    layers.forEach(([id,attrs])=>{
+      const e=document.createElement('a-entity');
+      e.id=id;
+      attrs.split(';').forEach(attr=>{
+        const colon=attr.indexOf(':');
+        if(colon===-1){e.setAttribute(attr,'');}
+        else{e.setAttribute(attr.slice(0,colon),attr.slice(colon+1));}
+      });
+      target.appendChild(e);
+    });
+
+    sceneEl.appendChild(target);
+    document.getElementById('ar-scene').replaceWith(sceneEl);
+
+    sceneEl.addEventListener('arReady',()=>{
+      setProgress(100,'Ready');
+      document.getElementById('loader').classList.remove('active');
+      document.getElementById('hint').classList.add('active');
+    });
+
+    sceneEl.addEventListener('targetFound',()=>{
+      try{
+        const psyche=document.getElementById('psychedelic-overlay').components['psychedelic-overlay'];
+        const inner=document.getElementById('particle-ring-1').components['particle-ring'];
+        const outer=document.getElementById('particle-ring-2').components['particle-ring'];
+        const geo=document.getElementById('sacred-geo').components['sacred-geo'];
+        const aura=document.getElementById('aura-glow').components['aura-glow'];
+        [psyche,inner,outer,geo,aura].forEach(c=>c&&c.show());
+        const f=document.getElementById('found-flash');f.classList.add('active');setTimeout(()=>f.classList.remove('active'),600);
+        document.getElementById('hint').classList.remove('active');
+      }catch(e){}
+    });
+
+    sceneEl.addEventListener('targetLost',()=>{
+      try{
+        const psyche=document.getElementById('psychedelic-overlay').components['psychedelic-overlay'];
+        const inner=document.getElementById('particle-ring-1').components['particle-ring'];
+        const outer=document.getElementById('particle-ring-2').components['particle-ring'];
+        const geo=document.getElementById('sacred-geo').components['sacred-geo'];
+        const aura=document.getElementById('aura-glow').components['aura-glow'];
+        [psyche,inner,outer,geo,aura].forEach(c=>c&&c.hide());
+        document.getElementById('hint').classList.add('active');
+      }catch(e){}
+    });
+
+    sceneEl.systems['mindar-image-system'].start();
+  }
+</script>
+</body>
+</html>
