@@ -187,6 +187,7 @@ AFRAME.registerComponent('waterfall-overlay', {
 });
 
 
+AFRAME.registerComponent('orb-ring',{
   schema:{radius:{default:.4},count:{default:36},speed:{default:.5},hue:{default:280},orbSize:{default:.028},reverse:{default:false}},
   init(){
     this.group=new THREE.Group();this.el.setObject3D('mesh',this.group);
