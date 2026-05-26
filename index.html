@@ -62,7 +62,7 @@
   <!-- Shirt 2: waterfall experience -->
   <a-entity mindar-image-target="targetIndex: 1">
     <a-plane width="1" height="1" material="opacity:0;transparent:true;side:double" position="0 0 0"></a-plane>
-    <a-entity position="0 0 0.01" waterfall-overlay></a-entity>
+    <a-entity position="0 0 0.01" scale="6 10 1" waterfall-overlay></a-entity>
   </a-entity>
 </a-scene>
 
@@ -214,7 +214,7 @@ AFRAME.registerComponent('waterfall-overlay',{
           F=lines(F,P,A,AA,T);F=stars(F,P,A,AA,T);
           F*=4.;F-=2e-2*vec3(2.,3.,1.);F=tanh(F);F=max(F,0.);F=sqrt(F)-.05;
           float brightness=dot(F,vec3(.299,.587,.114));
-          gl_FragColor=vec4(F,min(brightness*.9,0.85));
+          gl_FragColor=vec4(F,brightness);
         }
       `
     });
