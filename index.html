@@ -10,7 +10,6 @@
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:#000;font-family:'Courier New',monospace;overflow:hidden;width:100vw;height:100vh}
 
-    /* Splash */
     #splash{position:fixed;inset:0;z-index:100;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px}
     #splash.hidden{display:none}
     .brand-ring{width:110px;height:110px;border-radius:50%;border:3px solid transparent;background:conic-gradient(from 0deg,#ff00ff,#ff6600,#ffff00,#00ff88,#00cfff,#ff00ff) border-box;-webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;animation:spinRing 3s linear infinite}
@@ -20,14 +19,12 @@
     #start-btn{margin-top:8px;padding:13px 38px;border:1px solid #ff00ff;background:transparent;color:#ff00ff;font-family:'Courier New',monospace;font-size:12px;letter-spacing:.3em;text-transform:uppercase;cursor:pointer;border-radius:2px}
     #start-btn:active{background:#ff00ff30}
 
-    /* Loader */
     #loader{position:fixed;inset:0;z-index:90;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px}
     #loader.active{display:flex}
     .loader-bar-wrap{width:220px;height:3px;background:#222;border-radius:2px;overflow:hidden}
     .loader-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff00ff,#ff6600);transition:width .6s ease;box-shadow:0 0 10px #ff00ff}
     .loader-text{font-size:13px;letter-spacing:.25em;color:#ccc;text-transform:uppercase;font-weight:600}
 
-    /* Hint */
     #hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:50;display:none;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
     #hint.active{display:flex}
     .hint-frame{width:150px;height:150px;position:relative}
@@ -39,48 +36,24 @@
     @keyframes cornerPulse{0%,100%{opacity:.35}50%{opacity:1;box-shadow:0 0 8px #ff00ff}}
     .hint-text{font-size:11px;letter-spacing:.35em;color:#aaa;text-transform:uppercase}
 
-    /* Found flash */
     #found-flash{position:fixed;inset:0;z-index:40;background:radial-gradient(circle,#ff00ff28 0%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .3s}
     #found-flash.active{opacity:1}
 
-    /* Waterfall fullscreen canvas */
-    #waterfall-canvas{
-      position:fixed;inset:0;z-index:30;
-      width:100vw;height:100vh;
-      display:block;
-      transform:translateY(-100%);
-      transition:transform 0.6s cubic-bezier(0.4,0,0.2,1);
-      pointer-events:none;
-    }
-    #waterfall-canvas.visible{
-      transform:translateY(0%);
-    }
-
-    /* Arrow toggle button */
     #arrow-btn{
-      position:fixed;
-      bottom:32px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:9999;
-      display:none;
-      width:60px;height:60px;
-      border-radius:50%;
-      border:2px solid #ff00ff;
-      background:rgba(0,0,0,0.75);
-      cursor:pointer;
-      align-items:center;
-      justify-content:center;
-      box-shadow:0 0 20px #ff00ff88, 0 0 40px #ff00ff44;
-      transition:box-shadow .3s, transform .3s;
-      pointer-events:all !important;
-      touch-action:manipulation;
+      position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
+      z-index:9999;display:none;
+      width:60px;height:60px;border-radius:50%;
+      border:2px solid #ff00ff;background:rgba(0,0,0,0.75);
+      cursor:pointer;align-items:center;justify-content:center;
+      box-shadow:0 0 20px #ff00ff88,0 0 40px #ff00ff44;
+      transition:box-shadow .3s;
+      pointer-events:all!important;touch-action:manipulation;
       -webkit-tap-highlight-color:transparent;
     }
     #arrow-btn.active{display:flex}
-    #arrow-btn:active{transform:translateX(-50%) scale(0.88);box-shadow:0 0 30px #ff00ffcc}
-    #arrow-btn svg{transition:transform 0.4s ease;pointer-events:none}
-    #arrow-btn.waterfall-open svg{transform:rotate(180deg)}
+    #arrow-btn:active{box-shadow:0 0 30px #ff00ffcc}
+    #arrow-btn svg{transition:transform 0.5s cubic-bezier(0.4,0,0.2,1);pointer-events:none}
+    #arrow-btn.wf-open svg{transform:rotate(180deg)}
 
     a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:1}
   </style>
@@ -95,7 +68,11 @@
   vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: false"
 >
-  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+  <a-camera id="ar-camera" position="0 0 0" look-controls="enabled: false">
+    <!-- Waterfall plane parented to camera -- always fills screen -->
+    <a-entity id="waterfall-entity" position="0 0 -0.5" waterfall-shader visible="false"></a-entity>
+  </a-camera>
+
   <a-entity mindar-image-target="targetIndex: 0">
     <a-plane width="1" height="1" material="opacity:0;transparent:true;side:double" position="0 0 0"></a-plane>
     <a-entity id="psyche-layer"    position="0 0 0.01"  psychedelic-overlay></a-entity>
@@ -105,9 +82,6 @@
     <a-entity id="aura-disc"       position="0 0 0.005" aura-glow></a-entity>
   </a-entity>
 </a-scene>
-
-<!-- Waterfall fullscreen canvas -->
-<canvas id="waterfall-canvas"></canvas>
 
 <div id="splash">
   <div class="brand-ring"></div>
@@ -119,162 +93,251 @@
 <div id="loader">
   <div class="brand-logo" style="font-size:16px">UltraTribe</div>
   <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
-  <div class="loader-text" id="loader-text">Starting camera...</div>
+  <div class="loader-text">Starting camera...</div>
 </div>
 
 <div id="hint"><div class="hint-frame"><span></span></div><div class="hint-text">Point at the shirt</div></div>
 <div id="found-flash"></div>
 
-<!-- Arrow button -->
-<button id="arrow-btn" onclick="toggleWaterfall()">
-  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-    <polyline points="5,8 11,14 17,8" stroke="#ff00ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<button id="arrow-btn">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <polyline points="6,9 12,15 18,9" stroke="#ff00ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
 </button>
 
 <script>
-// ── Shaded Orb Ring ──────────────────────────────────────────────────────────
-AFRAME.registerComponent('orb-ring', {
-  schema: {
-    radius:  {default: 0.4},
-    count:   {default: 36},
-    speed:   {default: 0.5},
-    hue:     {default: 280},
-    orbSize: {default: 0.028},
-    reverse: {default: false}
+// ── Waterfall Shader -- camera-parented fullscreen plane ──────────────────────
+AFRAME.registerComponent('waterfall-shader', {
+  init() {
+    // Size the plane to fill the camera FOV at z=-0.5
+    // Default A-Frame FOV is 80deg. At distance 0.5:
+    // half-height = 0.5 * tan(40deg) = 0.42, width = height * aspect
+    const aspect = window.innerWidth / window.innerHeight;
+    const h = 2 * 0.5 * Math.tan(40 * Math.PI / 180);
+    const w = h * aspect;
+
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.FrontSide,
+      uniforms: {
+        time:       { value: 0 },
+        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        slideY:     { value: -1.0 }, // -1 = fully above screen, 0 = fully visible
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform float time;
+        uniform vec2  resolution;
+        uniform float slideY;
+        varying vec2 vUv;
+
+        const float PI  = 3.141592654;
+        const float TAU = 6.283185307;
+
+        float ray_issphere4(vec3 ro, vec3 rd, float ra) {
+          float r2=ra*ra;
+          vec3 d2=rd*rd,d3=d2*rd,o2=ro*ro,o3=o2*ro;
+          float ka=1./dot(d2,d2),
+                k3=ka*dot(ro,d3),k2=ka*dot(o2,d2),
+                k1=ka*dot(o3,rd),k0=ka*(dot(o2,o2)-r2*r2),
+                c2=k2-k3*k3,
+                c1=k1+2.*k3*k3*k3-3.*k3*k2,
+                c0=k0-3.*k3*k3*k3*k3+6.*k3*k3*k2-4.*k3*k1,
+                p=c2*c2+c0/3.,q=c2*c2*c2-c2*c0+c1*c1,h=q*q-p*p*p;
+          if(h<0.) return -1.;
+          float sh=sqrt(h),
+                s=sign(q+sh)*pow(abs(q+sh),1./3.),
+                t2=sign(q-sh)*pow(abs(q-sh),1./3.);
+          vec2 w=vec2(s+t2,s-t2),v=vec2(w.x+c2*4.,w.y*sqrt(3.))*.5;
+          float r=length(v);
+          return abs(v.y)/sqrt(r+v.x)-c1/r-k3;
+        }
+
+        float hash(vec2 co){ return fract(sin(dot(co,vec2(12.9898,58.233)))*13758.5453); }
+        float hash(float co){ return fract(sin(co*12.9898)*13758.5453); }
+        float dot2(vec2 p){ return dot(p,p); }
+
+        vec3 lines(vec3 F,vec3 P,float A,float AA,float T){
+          const float N=4.;
+          vec2 Z0=vec2(5e-3,TAU/6.),Z1=.2*Z0;
+          for(float j=0.;j<N;++j){
+            vec3 p=P; p.x+=Z0.x*j/N;
+            float h0=hash(vec2(floor(p.x/Z0.x+.5),j)),h1=fract(8667.*h0),a=A-T*(1.+h0);
+            vec2 q=vec2(p.x,a),n=floor(vec2(p.x,a)/Z0+.5),q0,q1,d;
+            q-=n*Z0; q0=q-vec2(0.,Z1.y); q1=q;
+            q1.y=max(abs(q1.y)-Z1.y,0.);
+            d=vec2(length(q0),length(q1))-Z1.x;
+            vec4 c=.5*(1.+sin(.1*T+TAU*h1+vec4(0.,1.,8.,4.)));
+            vec3 b=c.xyz*c.w;
+            F+=exp(19.*(q.y-Z1.y))*smoothstep(AA,-AA,d.y)*b;
+            F+=smoothstep(AA,-AA,d.x-.5*Z1.x)*sqrt(.5*(b-min(0.,d.x-.5*Z1.x)));
+          }
+          return F;
+        }
+
+        vec3 stars(vec3 F,vec3 P,float A,float AA,float T){
+          vec2 Z0=vec2(.1,TAU/6.);
+          vec3 p=P; p.x+=.123;
+          float h0=hash(vec2(floor(p.x/Z0.x+.5),0.)),h1=fract(8667.*h0),a=A-T*(1.5+h0);
+          vec2 q=vec2(p.x,a),n=floor(vec2(p.x,a)/Z0+.5),dq;
+          q-=n*Z0;
+          dq=vec2(dFdx(q.x),dFdy(q.y));
+          vec3 c=.5*(1.+sin(7.*T+TAU*h1+vec3(2.,1.,0.)))*hash(.123*n.x+floor(T*121.));
+          F+=c.xyz*7e-6/max(dot2(vec2(dq.y/max(dq.x,1e-6),1.)*q),1e-6);
+          return F;
+        }
+
+        void main() {
+          // Slide: vUv.y goes 0 (bottom) to 1 (top)
+          // slideY: -1 means plane is above screen, 0 means fully visible
+          float adjustedY = vUv.y + slideY;
+          if (adjustedY < 0.0 || adjustedY > 1.0) {
+            gl_FragColor = vec4(0.0);
+            return;
+          }
+
+          vec2 C = vec2(vUv.x, adjustedY) * resolution;
+          vec2 R = resolution;
+          vec3 RO = vec3(0.,-1.9,0.);
+          vec3 RD = normalize(vec3(C-.5*R, sqrt(2.)*R.y));
+          vec3 F = 3e-4*vec3(1.,4.,40.)/(dot2(vec2(sqrt(.5),1.).yx*((C+C-R)/R.x-vec2(0.,R.y/R.x)))+2e-3);
+          float Z = ray_issphere4(RO,RD,2.);
+          float T = 0.07*time+123.;
+          vec3 P = Z*RD+RO;
+          float A = atan(P.z,P.y);
+          float AA = sqrt(2.)*length(vec2(dFdx(P.x),dFdy(A)));
+          F = lines(F,P,A,AA,T);
+          F = stars(F,P,A,AA,T);
+          F *= 4.; F -= 2e-2*vec3(2.,3.,1.);
+          F = tanh(F); F = max(F,0.); F = sqrt(F)-.05;
+
+          // Brightness-based alpha -- blacks become transparent
+          float brightness = dot(F, vec3(0.299,0.587,0.114));
+          float alpha = min(brightness * 0.85, 0.80);
+
+          gl_FragColor = vec4(F, alpha);
+        }
+      `,
+    });
+
+    const geo = new THREE.PlaneGeometry(w, h);
+    const mesh = new THREE.Mesh(geo, mat);
+    this.el.setObject3D('mesh', mesh);
+    this.mat = mat;
+    this.slideY = -1.0;  // start fully above
+    this.targetSlideY = -1.0;
+    this.startTime = performance.now();
+    this.isVisible = false;
   },
+
+  tick() {
+    if (!this.mat) return;
+    this.mat.uniforms.time.value = (performance.now() - this.startTime) / 1000;
+
+    // Animate slideY
+    this.slideY += (this.targetSlideY - this.slideY) * 0.08;
+    this.mat.uniforms.slideY.value = this.slideY;
+  },
+
+  show() {
+    this.el.setAttribute('visible', true);
+    this.isVisible = true;
+    this.targetSlideY = 0.0;
+  },
+
+  hide() {
+    this.targetSlideY = -1.0;
+    this.isVisible = false;
+    // Hide entity after slide-out completes
+    const self = this;
+    setTimeout(() => {
+      if (!self.isVisible) self.el.setAttribute('visible', false);
+    }, 800);
+  }
+});
+
+// ── Shaded Orb Ring ───────────────────────────────────────────────────────────
+AFRAME.registerComponent('orb-ring', {
+  schema: { radius:{default:.4}, count:{default:36}, speed:{default:.5}, hue:{default:280}, orbSize:{default:.028}, reverse:{default:false} },
   init() {
     this.group = new THREE.Group();
     this.el.setObject3D('mesh', this.group);
-    this.visible = false;
-    this.group.visible = false;
-    this.orbs = [];
-
+    this.visible = false; this.group.visible = false; this.orbs = [];
     const { count, radius, hue, orbSize } = this.data;
-
-    // Shared light direction for all orbs
-    const lightDir = new THREE.Vector3(1, 1, 2).normalize();
-
+    const lightDir = new THREE.Vector3(1,1,2).normalize();
     for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const r = radius * (0.7 + Math.random() * 0.6);
-      const h = ((hue + (Math.random() - 0.5) * 80) / 360);
-      const size = orbSize * (0.7 + Math.random() * 0.6);
-
+      const angle = (i/count)*Math.PI*2, r = radius*(.7+Math.random()*.6);
+      const h = ((hue+(Math.random()-.5)*80)/360);
+      const size = orbSize*(.7+Math.random()*.6);
       const mat = new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: {
-          time:     { value: 0 },
-          baseHue:  { value: h },
-          lightDir: { value: lightDir },
-          opacity:  { value: 0.0 },
-        },
-        vertexShader: `
-          varying vec3 vNormal;
-          varying vec3 vViewDir;
-          void main() {
-            vNormal = normalize(normalMatrix * normal);
-            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-            vViewDir = normalize(-mvPos.xyz);
-            gl_Position = projectionMatrix * mvPos;
-          }
-        `,
-        fragmentShader: `
-          uniform float time;
-          uniform float baseHue;
+        transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+        uniforms:{ time:{value:0}, baseHue:{value:h}, lightDir:{value:lightDir}, opacity:{value:0} },
+        vertexShader:`
+          varying vec3 vNormal,vViewDir;
+          void main(){
+            vNormal=normalize(normalMatrix*normal);
+            vec4 mv=modelViewMatrix*vec4(position,1.);
+            vViewDir=normalize(-mv.xyz);
+            gl_Position=projectionMatrix*mv;
+          }`,
+        fragmentShader:`
+          uniform float time,baseHue,opacity;
           uniform vec3 lightDir;
-          uniform float opacity;
-          varying vec3 vNormal;
-          varying vec3 vViewDir;
-
-          vec3 hsv2rgb(vec3 c) {
-            vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-          }
-
-          void main() {
-            // Hue shift over time
-            float hue = mod(baseHue + time * 0.05, 1.0);
-            vec3 baseCol = hsv2rgb(vec3(hue, 0.9, 1.0));
-
-            // Diffuse
-            float diff = max(dot(vNormal, lightDir), 0.0);
-
-            // Specular (Blinn-Phong)
-            vec3 halfVec = normalize(lightDir + vViewDir);
-            float spec = pow(max(dot(vNormal, halfVec), 0.0), 32.0);
-
-            // Fresnel rim glow
-            float fresnel = pow(1.0 - max(dot(vNormal, vViewDir), 0.0), 3.0);
-
-            vec3 col = baseCol * (0.2 + 0.7 * diff)
-                     + vec3(1.0) * spec * 0.8
-                     + baseCol * fresnel * 1.2;
-
-            // Edge fade for soft orb
-            float edge = 1.0 - fresnel * 0.3;
-
-            gl_FragColor = vec4(col, opacity * edge);
-          }
-        `,
+          varying vec3 vNormal,vViewDir;
+          vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+          void main(){
+            float hue=mod(baseHue+time*.05,1.);
+            vec3 base=hsv2rgb(vec3(hue,.9,1.));
+            float diff=max(dot(vNormal,lightDir),0.);
+            vec3 h2=normalize(lightDir+vViewDir);
+            float spec=pow(max(dot(vNormal,h2),0.),32.);
+            float fres=pow(1.-max(dot(vNormal,vViewDir),0.),3.);
+            vec3 col=base*(.2+.7*diff)+vec3(1.)*spec*.8+base*fres*1.2;
+            gl_FragColor=vec4(col,opacity*(1.-fres*.3));
+          }`
       });
-
-      const geo = new THREE.SphereGeometry(size, 16, 16);
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(Math.cos(angle) * r, Math.sin(angle) * r, 0);
-
-      this.orbs.push({
-        mesh, mat, angle, r,
-        phase: Math.random() * Math.PI * 2,
-        speed: 0.5 + Math.random() * 1.5,
-        yOffset: (Math.random() - 0.5) * 0.1,
-      });
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(size,16,16), mat);
+      mesh.position.set(Math.cos(angle)*r, Math.sin(angle)*r, 0);
+      this.orbs.push({mesh,mat,angle,r,phase:Math.random()*Math.PI*2,speed:.5+Math.random()*1.5});
       this.group.add(mesh);
     }
-    this.targetOpacity = 0;
-    this.currentOpacity = 0;
+    this.targetOpacity=0; this.currentOpacity=0;
   },
-
-  tick(t) {
-    if (!this.visible && this.currentOpacity < 0.01) return;
-    const time = t / 1000;
-    const dir = this.data.reverse ? -1 : 1;
-
-    this.currentOpacity += (this.targetOpacity - this.currentOpacity) * 0.05;
-
-    this.orbs.forEach(o => {
-      const ang = o.angle + time * this.data.speed * dir * 0.3;
-      const drift = Math.sin(time * o.speed + o.phase) * 0.06;
-      const r = o.r + drift;
-      o.mesh.position.set(
-        Math.cos(ang) * r,
-        Math.sin(ang) * r + o.yOffset,
-        Math.sin(time * o.speed * 0.5 + o.phase) * 0.04
-      );
-      const pulse = 0.5 + 0.5 * Math.sin(time * o.speed * 2 + o.phase);
-      const s = 0.85 + pulse * 0.3;
-      o.mesh.scale.set(s, s, s);
-      o.mat.uniforms.time.value = time;
-      o.mat.uniforms.opacity.value = this.currentOpacity * (0.6 + pulse * 0.4);
+  tick(t){
+    if(!this.visible&&this.currentOpacity<.01)return;
+    const time=t/1000; const dir=this.data.reverse?-1:1;
+    this.currentOpacity+=(this.targetOpacity-this.currentOpacity)*.05;
+    this.orbs.forEach(o=>{
+      const ang=o.angle+time*this.data.speed*dir*.3;
+      const drift=Math.sin(time*o.speed+o.phase)*.06;
+      o.mesh.position.set(Math.cos(ang)*(o.r+drift),Math.sin(ang)*(o.r+drift),Math.sin(time*o.speed*.5+o.phase)*.04);
+      const pu=.5+.5*Math.sin(time*o.speed*2+o.phase);
+      const s=.85+pu*.3; o.mesh.scale.set(s,s,s);
+      o.mat.uniforms.time.value=time;
+      o.mat.uniforms.opacity.value=this.currentOpacity*(.6+pu*.4);
     });
   },
-
-  show() { this.visible = true; this.group.visible = true; this.targetOpacity = 1; },
-  hide() { this.visible = false; this.targetOpacity = 0; }
+  show(){this.visible=true;this.group.visible=true;this.targetOpacity=1;},
+  hide(){this.visible=false;this.targetOpacity=0;}
 });
 
-// ── Psychedelic Overlay ──────────────────────────────────────────────────────
-AFRAME.registerComponent('psychedelic-overlay', {
-  init() {
-    const mat = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false,
-      uniforms: { time: {value:0}, opacity: {value:0} },
-      vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader: `
-        uniform float time;uniform float opacity;varying vec2 vUv;
+// ── Psychedelic Overlay ───────────────────────────────────────────────────────
+AFRAME.registerComponent('psychedelic-overlay',{
+  init(){
+    const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+      uniforms:{time:{value:0},opacity:{value:0}},
+      vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+      fragmentShader:`
+        uniform float time,opacity;varying vec2 vUv;
         vec3 hsv(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
         float rip(vec2 uv,float t,float f,float ph){return sin(length(uv-.5)*f-t*2.+ph)*.5+.5;}
         void main(){
@@ -284,363 +347,110 @@ AFRAME.registerComponent('psychedelic-overlay', {
           float sw=sin(ang*6.+rad*12.-t*1.5)*.5+.5;
           vec3 col=hsv(vec3(mod(r1*.4+r2*.3+sw*.3+t*.08,1.),.9+r3*.1,.7+sw*.3));
           gl_FragColor=vec4(col,smoothstep(.5,.35,rad)*opacity*.55);
-        }`
-    });
-    this.mat = mat; this.opacity = 0; this.targetOpacity = 0;
-    this.el.setObject3D('mesh', new THREE.Mesh(new THREE.PlaneGeometry(1,1), mat));
+        }`});
+    this.mat=mat;this.opacity=0;this.targetOpacity=0;
+    this.el.setObject3D('mesh',new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat));
   },
-  tick(t) {
-    if (!this.mat) return;
-    this.mat.uniforms.time.value = t / 1000;
-    this.opacity += (this.targetOpacity - this.opacity) * 0.05;
-    this.mat.uniforms.opacity.value = this.opacity;
-  },
-  show() { this.targetOpacity = 1; },
-  hide() { this.targetOpacity = 0; }
+  tick(t){if(!this.mat)return;this.mat.uniforms.time.value=t/1000;this.opacity+=(this.targetOpacity-this.opacity)*.05;this.mat.uniforms.opacity.value=this.opacity;},
+  show(){this.targetOpacity=1;},hide(){this.targetOpacity=0;}
 });
 
-// ── Sacred Geo -- glowing shader rings ──────────────────────────────────────
-AFRAME.registerComponent('sacred-geo', {
-  init() {
-    this.group = new THREE.Group();
-    this.el.setObject3D('mesh', this.group);
-    this.visible = false; this.group.visible = false; this.rings = [];
-
-    const configs = [
-      { sides: 3, r: 0.38, hue: 0.83, speed: 0.18, dir:  1 },
-      { sides: 6, r: 0.44, hue: 0.08, speed: 0.25, dir: -1 },
-      { sides: 3, r: 0.50, hue: 0.55, speed: 0.14, dir:  1 },
-      { sides: 6, r: 0.57, hue: 0.16, speed: 0.20, dir: -1 },
-    ];
-
-    configs.forEach((cfg, i) => {
-      const pts = [];
-      for (let j = 0; j <= cfg.sides; j++) {
-        const a = (j / cfg.sides) * Math.PI * 2 - Math.PI / 2;
-        pts.push(Math.cos(a) * cfg.r, Math.sin(a) * cfg.r, 0);
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-
-      const mat = new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: {
-          time:    { value: 0 },
-          baseHue: { value: cfg.hue },
-          opacity: { value: 0 },
-        },
-        vertexShader: `
-          void main() {
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform float time;
-          uniform float baseHue;
-          uniform float opacity;
-
-          vec3 hsv2rgb(vec3 c) {
-            vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-          }
-
-          void main() {
-            float hue = mod(baseHue + time * 0.04, 1.0);
-            float pulse = 0.5 + 0.5 * sin(time * 1.3);
-            vec3 col = hsv2rgb(vec3(hue, 1.0, 1.0));
-            gl_FragColor = vec4(col, opacity * (0.5 + 0.5 * pulse));
-          }
-        `,
-      });
-
-      const line = new THREE.Line(geo, mat);
-      this.rings.push({ line, mat, dir: cfg.dir, speed: cfg.speed });
-      this.group.add(line);
+// ── Sacred Geo ────────────────────────────────────────────────────────────────
+AFRAME.registerComponent('sacred-geo',{
+  init(){
+    this.group=new THREE.Group();this.el.setObject3D('mesh',this.group);
+    this.visible=false;this.group.visible=false;this.rings=[];
+    [{sides:3,r:.38,hue:.83,speed:.18,dir:1},{sides:6,r:.44,hue:.08,speed:.25,dir:-1},
+     {sides:3,r:.50,hue:.55,speed:.14,dir:1},{sides:6,r:.57,hue:.16,speed:.20,dir:-1}].forEach((cfg)=>{
+      const pts=[];
+      for(let j=0;j<=cfg.sides;j++){const a=(j/cfg.sides)*Math.PI*2-Math.PI/2;pts.push(Math.cos(a)*cfg.r,Math.sin(a)*cfg.r,0);}
+      const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+      const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+        uniforms:{time:{value:0},baseHue:{value:cfg.hue},opacity:{value:0}},
+        vertexShader:`void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+        fragmentShader:`uniform float time,baseHue,opacity;vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}void main(){float hue=mod(baseHue+time*.04,1.);float pulse=.5+.5*sin(time*1.3);vec3 col=hsv2rgb(vec3(hue,1.,1.));gl_FragColor=vec4(col,opacity*(.5+.5*pulse));}`});
+      const line=new THREE.Line(geo,mat);
+      this.rings.push({line,mat,dir:cfg.dir,speed:cfg.speed});this.group.add(line);
     });
-
-    this.targetOpacity = 0;
-    this.currentOpacity = 0;
+    this.targetOpacity=0;this.currentOpacity=0;
   },
-
-  tick(t) {
-    if (!this.visible && this.currentOpacity < 0.01) return;
-    const time = t / 1000;
-    this.currentOpacity += (this.targetOpacity - this.currentOpacity) * 0.05;
-    this.rings.forEach(r => {
-      r.line.rotation.z = time * r.speed * r.dir;
-      r.mat.uniforms.time.value = time;
-      r.mat.uniforms.opacity.value = this.currentOpacity;
-    });
+  tick(t){
+    if(!this.visible&&this.currentOpacity<.01)return;
+    const time=t/1000;this.currentOpacity+=(this.targetOpacity-this.currentOpacity)*.05;
+    this.rings.forEach(r=>{r.line.rotation.z=time*r.speed*r.dir;r.mat.uniforms.time.value=time;r.mat.uniforms.opacity.value=this.currentOpacity;});
   },
-
-  show() { this.visible = true; this.group.visible = true; this.targetOpacity = 1; },
-  hide() { this.visible = false; this.targetOpacity = 0; }
+  show(){this.visible=true;this.group.visible=true;this.targetOpacity=1;},
+  hide(){this.visible=false;this.targetOpacity=0;}
 });
 
-// ── Aura Glow ────────────────────────────────────────────────────────────────
-AFRAME.registerComponent('aura-glow', {
-  init() {
-    const mat = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      uniforms: { time: {value:0} },
-      vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader: `
-        uniform float time;varying vec2 vUv;
-        void main(){
-          vec2 c=vUv-.5;float d=length(c);
-          float pu=.5+.5*sin(time*1.2);
-          float glow=smoothstep(.5,0.,d)*.35*pu;
-          float h=mod(time*.1,1.);
-          float r=abs(h*6.-3.)-1.;float g=2.-abs(h*6.-2.);float b=2.-abs(h*6.-4.);
-          gl_FragColor=vec4(clamp(vec3(r,g,b),0.,1.)*glow,glow);
-        }`
-    });
-    this.mat = mat; this.visible = false;
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3), mat);
-    this.mesh.visible = false;
-    this.el.setObject3D('mesh', this.mesh);
+// ── Aura Glow ─────────────────────────────────────────────────────────────────
+AFRAME.registerComponent('aura-glow',{
+  init(){
+    const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+      uniforms:{time:{value:0}},
+      vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+      fragmentShader:`uniform float time;varying vec2 vUv;void main(){vec2 c=vUv-.5;float d=length(c);float pu=.5+.5*sin(time*1.2);float glow=smoothstep(.5,0.,d)*.35*pu;float h=mod(time*.1,1.);float r=abs(h*6.-3.)-1.;float g=2.-abs(h*6.-2.);float b=2.-abs(h*6.-4.);gl_FragColor=vec4(clamp(vec3(r,g,b),0.,1.)*glow,glow);}`});
+    this.mat=mat;this.visible=false;
+    this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),mat);
+    this.mesh.visible=false;this.el.setObject3D('mesh',this.mesh);
   },
-  tick(t) { if (this.visible) this.mat.uniforms.time.value = t / 1000; },
-  show() { this.visible = true; this.mesh.visible = true; },
-  hide() { this.visible = false; this.mesh.visible = false; }
+  tick(t){if(this.visible)this.mat.uniforms.time.value=t/1000;},
+  show(){this.visible=true;this.mesh.visible=true;},
+  hide(){this.visible=false;this.mesh.visible=false;}
 });
 
-// ── Waterfall Fullscreen Shader ───────────────────────────────────────────────
-const wfCanvas = document.getElementById('waterfall-canvas');
-const wfGL = wfCanvas.getContext('webgl') || wfCanvas.getContext('experimental-webgl');
-let wfProgram, wfStartTime, wfAnimId;
-let waterfallOpen = false;
-
-function initWaterfall() {
-  const gl = wfGL;
-  if (!gl) return;
-
-  wfCanvas.width  = window.innerWidth;
-  wfCanvas.height = window.innerHeight;
-  gl.viewport(0, 0, wfCanvas.width, wfCanvas.height);
-
-  const vert = `
-    attribute vec2 a_pos;
-    void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
-  `;
-
-  // Waterfall shader -- ported from CC0 original by mrange
-  const frag = `
-    precision highp float;
-    uniform vec2  iResolution;
-    uniform float iTime;
-
-    const float PI   = 3.141592654;
-    const float TAU  = 6.283185307;
-    const float PI_2 = 1.570796327;
-
-    float ray_issphere4(vec3 ro, vec3 rd, float ra) {
-      float r2 = ra*ra;
-      vec3 d2=rd*rd, d3=d2*rd, o2=ro*ro, o3=o2*ro;
-      float ka=1./dot(d2,d2),
-            k3=ka*dot(ro,d3),
-            k2=ka*dot(o2,d2),
-            k1=ka*dot(o3,rd),
-            k0=ka*(dot(o2,o2)-r2*r2),
-            c2=k2-k3*k3,
-            c1=k1+2.*k3*k3*k3-3.*k3*k2,
-            c0=k0-3.*k3*k3*k3*k3+6.*k3*k3*k2-4.*k3*k1,
-            p=c2*c2+c0/3.,
-            q=c2*c2*c2-c2*c0+c1*c1,
-            h=q*q-p*p*p;
-      if(h<0.) return -1.;
-      float sh=sqrt(h),
-            s=sign(q+sh)*pow(abs(q+sh),1./3.),
-            t=sign(q-sh)*pow(abs(q-sh),1./3.);
-      vec2 w=vec2(s+t,s-t),
-           v=vec2(w.x+c2*4.,w.y*sqrt(3.))*.5;
-      float r=length(v);
-      return abs(v.y)/sqrt(r+v.x)-c1/r-k3;
-    }
-
-    float hash(vec2 co){ return fract(sin(dot(co.xy,vec2(12.9898,58.233)))*13758.5453); }
-    float hash(float co){ return fract(sin(co*12.9898)*13758.5453); }
-    float dot2(vec2 p){ return dot(p,p); }
-
-    vec3 lines(vec3 F, vec3 P, float A, float AA, float T) {
-      const float N=4.;
-      vec2 Z0=vec2(5e-3,TAU/6.), Z1=.2*Z0;
-      for(float j=0.;j<N;++j){
-        vec3 p=P;
-        p.x+=Z0.x*j/N;
-        float h0=hash(vec2(floor(p.x/Z0.x+.5),j)),
-              h1=fract(8667.*h0),
-              a=A-T*(1.+h0);
-        vec2 q=vec2(p.x,a),
-             n=floor(vec2(p.x,a)/Z0+.5),
-             q0,q1,d;
-        q-=n*Z0;
-        q0=q-vec2(0.,Z1.y);
-        q1=q;
-        q1.y=max(abs(q1.y)-Z1.y,0.);
-        d=vec2(length(q0),length(q1))-Z1.x;
-        vec4 c=.5*(1.+sin(.1*T+TAU*h1+vec4(0.,1.,8.,4.)));
-        vec3 b=c.xyz*c.w;
-        F+=exp(19.*(q.y-Z1.y))*smoothstep(AA,-AA,d.y)*b;
-        F+=smoothstep(AA,-AA,d.x-.5*Z1.x)*sqrt(.5*(b-min(0.,d.x-.5*Z1.x)));
-      }
-      return F;
-    }
-
-    vec3 stars(vec3 F, vec3 P, float A, float AA, float T) {
-      vec2 Z0=vec2(.1,TAU/6.);
-      vec3 p=P; p.x+=.123;
-      float h0=hash(vec2(floor(p.x/Z0.x+.5),0.)),
-            h1=fract(8667.*h0),
-            a=A-T*(1.5+h0);
-      vec2 q=vec2(p.x,a),
-           n=floor(vec2(p.x,a)/Z0+.5),
-           dq;
-      q-=n*Z0;
-      dq=vec2(dFdx(q.x),dFdy(q.y));
-      vec3 c=.5*(1.+sin(7.*T+TAU*h1+vec3(2.,1.,0.)))*hash(.123*n.x+floor(T*121.));
-      F+=c.xyz*7e-6/max(dot2(vec2(dq.y/dq.x,1.)*q),1e-6);
-      return F;
-    }
-
-    void main() {
-      vec2 C = gl_FragCoord.xy;
-      vec2 R = iResolution;
-      vec3 RO = vec3(0.,-1.9,0.);
-      vec3 RD = normalize(vec3(C-.5*R, sqrt(2.)*R.y));
-      vec3 F = 3e-4*vec3(1.,4.,40.)/
-               (dot2(vec2(sqrt(.5),1.).yx*((C+C-R)/R.x - vec2(0.,R.y/R.x)))+2e-3);
-      float Z = ray_issphere4(RO,RD,2.);
-      float T = 0.07*iTime+123.;
-      vec3 P = Z*RD+RO;
-      float A = atan(P.z,P.y);
-      float AA = sqrt(2.)*length(vec2(dFdx(P.x),dFdy(A)));
-      F = lines(F,P,A,AA,T);
-      F = stars(F,P,A,AA,T);
-      F *= 4.;
-      F -= 2e-2*vec3(2.,3.,1.);
-      F = tanh(F);
-      F = max(F,0.);
-      F = sqrt(F)-.05;
-
-      // Brightness as alpha -- blacks become transparent
-      float brightness = dot(F, vec3(0.299, 0.587, 0.114));
-      float alpha = brightness * 0.85;  // scale so even bright areas stay at ~85%
-      // Overall cap at 0.80 opacity -- keeps ~20% see-through minimum
-      alpha = min(alpha, 0.80);
-
-      gl_FragColor = vec4(F, alpha);
-    }
-  `;
-
-  function makeShader(type, src) {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    return s;
-  }
-
-  wfProgram = gl.createProgram();
-  gl.attachShader(wfProgram, makeShader(gl.VERTEX_SHADER, vert));
-  gl.attachShader(wfProgram, makeShader(gl.FRAGMENT_SHADER, frag));
-  gl.linkProgram(wfProgram);
-  gl.useProgram(wfProgram);
-
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-  const loc = gl.getAttribLocation(wfProgram, 'a_pos');
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-  wfStartTime = performance.now();
-
-  function render() {
-    const t = (performance.now() - wfStartTime) / 1000;
-    gl.uniform2f(gl.getUniformLocation(wfProgram, 'iResolution'), wfCanvas.width, wfCanvas.height);
-    gl.uniform1f(gl.getUniformLocation(wfProgram, 'iTime'), t);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    wfAnimId = requestAnimationFrame(render);
-  }
-  render();
-
-  window.addEventListener('resize', () => {
-    wfCanvas.width  = window.innerWidth;
-    wfCanvas.height = window.innerHeight;
-    gl.viewport(0, 0, wfCanvas.width, wfCanvas.height);
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showEffects(){
+  ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const c=el.components['psychedelic-overlay']||el.components['orb-ring']||el.components['sacred-geo']||el.components['aura-glow'];
+    if(c)c.show();
   });
-}
-
-// ── Toggle waterfall ──────────────────────────────────────────────────────────
-function toggleWaterfall(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  waterfallOpen = !waterfallOpen;
-  const btn = document.getElementById('arrow-btn');
-  if (waterfallOpen) {
-    wfCanvas.classList.add('visible');
-    btn.classList.add('waterfall-open');
-  } else {
-    wfCanvas.classList.remove('visible');
-    btn.classList.remove('waterfall-open');
-  }
-}
-
-// Attach both click and touchend for maximum iOS compatibility
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('arrow-btn');
-  btn.addEventListener('touchend', toggleWaterfall, { passive: false });
-});
-
-// ── AR helpers ────────────────────────────────────────────────────────────────
-function showEffects() {
-  ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id => {
-    const el = document.getElementById(id); if (!el) return;
-    const c = el.components['psychedelic-overlay'] || el.components['orb-ring'] ||
-              el.components['sacred-geo'] || el.components['aura-glow'];
-    if (c) c.show();
-  });
-  const f = document.getElementById('found-flash');
-  f.classList.add('active');
-  setTimeout(() => f.classList.remove('active'), 600);
+  const f=document.getElementById('found-flash');f.classList.add('active');
+  setTimeout(()=>f.classList.remove('active'),600);
   document.getElementById('hint').classList.remove('active');
 }
 
-function hideEffects() {
-  ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id => {
-    const el = document.getElementById(id); if (!el) return;
-    const c = el.components['psychedelic-overlay'] || el.components['orb-ring'] ||
-              el.components['sacred-geo'] || el.components['aura-glow'];
-    if (c) c.hide();
+function hideEffects(){
+  ['psyche-layer','particle-ring-1','particle-ring-2','geo-spinner','aura-disc'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const c=el.components['psychedelic-overlay']||el.components['orb-ring']||el.components['sacred-geo']||el.components['aura-glow'];
+    if(c)c.hide();
   });
   document.getElementById('hint').classList.add('active');
 }
 
-// ── Start ─────────────────────────────────────────────────────────────────────
+// ── Waterfall toggle ──────────────────────────────────────────────────────────
+let waterfallOpen = false;
+const btn = document.getElementById('arrow-btn');
+
+function toggleWaterfall(){
+  waterfallOpen = !waterfallOpen;
+  const wf = document.getElementById('waterfall-entity');
+  const comp = wf.components['waterfall-shader'];
+  if(waterfallOpen){ comp.show(); btn.classList.add('wf-open'); }
+  else             { comp.hide(); btn.classList.remove('wf-open'); }
+}
+
+btn.addEventListener('click',    toggleWaterfall);
+btn.addEventListener('touchend', e=>{ e.preventDefault(); toggleWaterfall(); }, {passive:false});
+
+// ── AR lifecycle ──────────────────────────────────────────────────────────────
 const sceneEl = document.getElementById('ar-scene');
 
 sceneEl.addEventListener('arReady', () => {
   document.getElementById('loader').classList.remove('active');
   document.getElementById('hint').classList.add('active');
-  document.getElementById('arrow-btn').classList.add('active');
-
-  // Disable pointer events on the A-Frame canvas so HTML elements above it
-  // receive touch and click events normally on iOS and Android
-  const aframeCanvas = sceneEl.querySelector('canvas');
-  if (aframeCanvas) aframeCanvas.style.pointerEvents = 'none';
-
-  initWaterfall();
+  btn.classList.add('active');
+  // Disable pointer events on A-Frame canvas so HTML button receives touches
+  const afc = sceneEl.querySelector('canvas');
+  if(afc) afc.style.pointerEvents = 'none';
 });
 
 sceneEl.addEventListener('targetFound', showEffects);
 sceneEl.addEventListener('targetLost',  hideEffects);
 
-function startAR() {
+function startAR(){
   document.getElementById('splash').classList.add('hidden');
   document.getElementById('loader').classList.add('active');
   document.getElementById('loader-bar').style.width = '60%';
